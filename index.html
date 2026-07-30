@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TerraImagem - Calculadora Agronômica de Adubação</title>
+  <link rel="stylesheet" href="./style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</head>
+<body>
+
+  <header class="header">
+    <div class="brand-header">
+      <div class="brand-logo-container">
+        <img src="./logo.jpg" alt="TERRAIMAGEM - Tecnologia para Agricultura de Precisão" class="brand-logo">
+      </div>
+    </div>
+    <h1 style="margin-top: 1.2rem;">Calculadora & Agricultura de Precisão</h1>
+    <p>Calculadora de Fósforo e potássio e arquivos de aplicação</p>
+  </header>
+
+  <main class="container">
+    
+    <!-- Lado Esquerdo: Formulário de Entrada -->
+    <section class="glass-card">
+      <h2 class="card-title">
+        <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+        Parâmetros de Entrada
+      </h2>
+
+      <div id="alertError" class="alert-error"></div>
+
+      <div class="form-group">
+        <label for="cultura">Cultura Desejada</label>
+        <select id="cultura">
+          <option value="Soja">Soja</option>
+          <option value="Milho">Milho</option>
+          <option value="Arroz">Arroz</option>
+          <option value="Trigo / Sorgo">Trigo / Sorgo</option>
+          <option value="Aveia (Preta / Branca)">Aveia (Preta / Branca)</option>
+          <option value="Canola">Canola</option>
+          <option value="Centeio">Centeio</option>
+          <option value="Cevada">Cevada</option>
+          <option value="Feijão">Feijão</option>
+          <option value="Girassol">Girassol</option>
+        </select>
+        <div class="help-text">Selecione a cultura agrícola a ser implantada.</div>
+      </div>
+
+      <div class="form-group">
+        <label for="expectativa">Expectativa de Produção (sc/ha)</label>
+        <input type="text" id="expectativa" placeholder="Ex: 60 ou 60,5" value="60">
+        <div class="help-text">Informe em sacos de 60 kg por hectare (aceita vírgula).</div>
+      </div>
+
+      <div class="form-group">
+        <label for="formulado">Formulado do Produto (N - P - K)</label>
+        <input type="text" id="formulado" placeholder="Ex: 05-10-30 ou 05-30-10" value="05-10-30">
+        <div class="help-text">Formato: XX-YY-ZZ (XX% N, YY% Fósforo P₂O₅, ZZ% Potássio K₂O).</div>
+      </div>
+
+      <button id="btnCalcular" class="btn-primary">
+        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+        </svg>
+        Calcular Fertilizantes
+      </button>
+    </section>
+
+    <!-- Lado Direito: Resultados -->
+    <section class="glass-card">
+      <h2 class="card-title">
+        <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+        </svg>
+        Recomendação por Hectare
+      </h2>
+
+      <!-- Estado Inicial (Vazio) -->
+      <div id="resultsEmpty" class="results-empty">
+        <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+        </svg>
+        <p>Preencha os campos ao lado e clique em <strong>Calcular Fertilizantes</strong> para visualizar as recomendações.</p>
+      </div>
+
+      <!-- Conteúdo dos Resultados -->
+      <div id="resultsContent" class="results-content">
+
+        <!-- Resumo Rápido -->
+        <div class="summary-badges">
+          <div class="badge-box">
+            <div class="label">Cultura</div>
+            <div class="value" id="resCultura">-</div>
+          </div>
+          <div class="badge-box">
+            <div class="label">Expectativa</div>
+            <div class="value" id="resExpectativa">-</div>
+          </div>
+        </div>
+
+        <!-- 1. Necessidade de Nutrientes -->
+        <div class="section-divider">
+          <span>1. Necessidade de Nutrientes</span>
+        </div>
+
+        <!-- Manutenção -->
+        <div class="product-box">
+          <h4>CENÁRIO: MANUTENÇÃO</h4>
+          <div class="product-row">
+            <span class="product-name">Fósforo:</span>
+            <span class="product-qty" id="pManutDose">-</span>
+          </div>
+          <div class="product-row">
+            <span class="product-name">Potássio:</span>
+            <span class="product-qty" id="kManutDose" style="color: var(--accent-lime);">-</span>
+          </div>
+        </div>
+
+        <!-- Reposição -->
+        <div class="product-box">
+          <h4>CENÁRIO: REPOSIÇÃO</h4>
+          <div class="product-row">
+            <span class="product-name">Fósforo:</span>
+            <span class="product-qty" id="pRepoDose">-</span>
+          </div>
+          <div class="product-row">
+            <span class="product-name">Potássio:</span>
+            <span class="product-qty" id="kRepoDose" style="color: var(--accent-lime);">-</span>
+          </div>
+        </div>
+
+        <!-- 2. Recomendações de Produtos Comercializáveis -->
+        <div class="section-divider">
+          <span>2. Dose de Produto (kg/ha)</span>
+          <span style="font-size: 0.75rem; color: var(--accent-lime);" id="resFormulado">Formulado</span>
+        </div>
+
+        <!-- Manutenção -->
+        <div class="product-box">
+          <h4>CENÁRIO: MANUTENÇÃO</h4>
+          <div class="product-row">
+            <span class="product-name">Quantidade de produto:</span>
+            <span class="product-qty" id="manutProd">-</span>
+          </div>
+          <div class="product-row">
+            <span class="product-name">Quantidade de complemento:</span>
+            <span id="manutComp" style="color: var(--text-muted);">-</span>
+          </div>
+          <div class="obs-tag" id="obsManut"></div>
+        </div>
+
+        <!-- Reposição -->
+        <div class="product-box">
+          <h4>CENÁRIO: REPOSIÇÃO</h4>
+          <div class="product-row">
+            <span class="product-name">Quantidade de produto:</span>
+            <span class="product-qty" id="repoProd">-</span>
+          </div>
+          <div class="product-row">
+            <span class="product-name">Quantidade de complemento:</span>
+            <span id="repoComp" style="color: var(--text-muted);">-</span>
+          </div>
+          <div class="obs-tag" id="obsRepo"></div>
+        </div>
+
+        <!-- 3. Agricultura de Precisão (Upload KML) -->
+        <div class="section-divider">
+          <span>3. Agricultura de Precisão (Mapa .KML)</span>
+        </div>
+
+        <div class="product-box" style="border-color: rgba(139, 189, 42, 0.3); background: rgba(139, 189, 42, 0.03);">
+          <h4>GERAÇÃO DE PACOTE SHAPEFILE (SIRGAS 2000 / UTM)</h4>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.8rem;">
+            Envie o arquivo <strong>.KML</strong> do seu talhão para incorporar estas doses calculadas à geometria da área e baixar o pacote Shapefile pronto para máquinas agrícolas.
+          </p>
+
+          <div class="form-group">
+            <label for="nomeTalhao">Nome ou Identificação do Talhão</label>
+            <input type="text" id="nomeTalhao" placeholder="Ex: Talhao_01" value="Talhao_01">
+          </div>
+
+          <div class="form-group">
+            <label for="kmlFile">Selecione o Arquivo KML do Talhão</label>
+            <input type="file" id="kmlFile" accept=".kml">
+          </div>
+
+          <button id="btnGerarShapefile" class="btn-primary" style="background: linear-gradient(135deg, #8CBD2A 0%, #6B9E1E 100%); margin-top: 1rem;">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+            </svg>
+            Gerar e Baixar Pacote Shapefile (.ZIP)
+          </button>
+          
+          <div id="shapefileStatus" class="obs-tag" style="margin-top: 0.8rem; font-style: normal;"></div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <script src="./app.js"></script>
+</body>
+</html>

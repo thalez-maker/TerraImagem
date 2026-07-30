@@ -1,0 +1,313 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --bg-primary: #0d1217;
+  --bg-card: rgba(21, 28, 36, 0.85);
+  --border-color: rgba(139, 189, 42, 0.15);
+  
+  /* Cores extraídas da nova logo TERRAIMAGEM */
+  --accent-lime: #8CBD2A;         /* Verde Claro IMAGEM */
+  --accent-lime-hover: #7ba823;
+  --accent-lime-glow: rgba(139, 189, 42, 0.35);
+  --accent-forest: #23532C;       /* Verde Escuro Pin */
+  --brand-charcoal: #181C20;     /* Escuro TERRA */
+  
+  --text-main: #f3f4f6;
+  --text-muted: #9da7b3;
+  --input-bg: rgba(13, 18, 23, 0.85);
+  --card-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: 'Outfit', sans-serif;
+}
+
+body {
+  background-color: var(--bg-primary);
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(139, 189, 42, 0.1) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(35, 83, 44, 0.15) 0px, transparent 50%);
+  color: var(--text-main);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem 1rem;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 2.5rem;
+  max-width: 750px;
+}
+
+.brand-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.brand-logo-container {
+  background: #ffffff;
+  padding: 16px 36px;
+  border-radius: 20px;
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.brand-logo-container:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 45px rgba(139, 189, 42, 0.35);
+}
+
+.brand-logo {
+  height: 95px;
+  max-width: 420px;
+  width: auto;
+  display: block;
+}
+
+.header h1 {
+  font-size: 2.2rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #ffffff 0%, #d4ee9f 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 0.4rem;
+}
+
+.header p {
+  color: var(--text-muted);
+  font-size: 1.05rem;
+}
+
+.container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  width: 100%;
+  max-width: 1100px;
+}
+
+@media (max-width: 850px) {
+  .container {
+    grid-template-columns: 1fr;
+  }
+}
+
+.glass-card {
+  background: var(--bg-card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-color);
+  border-radius: 1.25rem;
+  padding: 2rem;
+  box-shadow: var(--card-shadow);
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.glass-card:hover {
+  border-color: rgba(139, 189, 42, 0.35);
+}
+
+.card-title {
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.card-title svg {
+  color: var(--accent-lime);
+}
+
+.form-group {
+  margin-bottom: 1.25rem;
+}
+
+.form-group label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-bottom: 0.4rem;
+}
+
+.form-group input, .form-group select {
+  width: 100%;
+  background: var(--input-bg);
+  border: 1px solid var(--border-color);
+  color: #fff;
+  padding: 0.8rem 1rem;
+  border-radius: 0.75rem;
+  font-size: 1rem;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.form-group input:focus, .form-group select:focus {
+  border-color: var(--accent-lime);
+  box-shadow: 0 0 0 3px var(--accent-lime-glow);
+}
+
+.help-text {
+  font-size: 0.78rem;
+  color: #6b7280;
+  margin-top: 0.3rem;
+}
+
+.btn-primary {
+  width: 100%;
+  background: linear-gradient(135deg, #8CBD2A 0%, #6B9E1E 100%);
+  color: #ffffff;
+  border: none;
+  padding: 0.9rem;
+  border-radius: 0.75rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(139, 189, 42, 0.35);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(139, 189, 42, 0.5);
+  background: linear-gradient(135deg, #96ca2e 0%, #75ad22 100%);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+/* Results Display */
+.results-empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 3rem 1rem;
+}
+
+.results-empty svg {
+  color: #374151;
+  margin-bottom: 1rem;
+}
+
+.results-content {
+  display: none;
+  animation: fadeIn 0.4s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.summary-badges {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.8rem;
+  margin-bottom: 1.5rem;
+}
+
+.badge-box {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-color);
+  padding: 0.8rem 1rem;
+  border-radius: 0.75rem;
+}
+
+.badge-box .label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.badge-box .value {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--accent-lime);
+  margin-top: 0.2rem;
+}
+
+.section-divider {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #fff;
+  margin: 1.25rem 0 0.75rem 0;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.product-box {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.product-box h4 {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent-lime);
+  margin-bottom: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.product-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.05);
+}
+
+.product-row:last-child {
+  border-bottom: none;
+}
+
+.product-name {
+  color: var(--text-main);
+}
+
+.product-qty {
+  font-weight: 700;
+  color: var(--accent-lime);
+}
+
+.obs-tag {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-style: italic;
+  margin-top: 0.4rem;
+}
+
+.alert-error {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+  padding: 0.8rem 1rem;
+  border-radius: 0.75rem;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+  display: none;
+}
