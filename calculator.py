@@ -27,7 +27,7 @@ def parse_formulado(formulado_str: str):
     k = float(tokens[2].replace(',', '.'))
     return n, p, k
 
-def calcular_adubacao(cultura: str, expectativa_sacos: float, formulado_str: str):
+def calcular_adubacao(cultura: str, expectativa_sacos: float, formulado_str: str, k_comp_perc: float = 60.0, p_comp_perc: float = 46.0):
     """
     Realiza o cálculo de adubação de manutenção e reposição para P2O5 e K2O.
     """
@@ -68,15 +68,23 @@ def calcular_adubacao(cultura: str, expectativa_sacos: float, formulado_str: str
     }
     
     def calc_cenario(p_req, k_req):
+        k_conc_comp = (k_comp_perc / 100.0) if (k_comp_perc and k_comp_perc > 0) else 0.60
+        p_conc_comp = (p_comp_perc / 100.0) if (p_comp_perc and p_comp_perc > 0) else 0.46
+
+        label_k = f"KCl ({k_comp_perc}%)" if k_comp_perc == 60 else f"Complemento K₂O ({k_comp_perc}%)"
+        label_p = f"Super Triplo ({p_comp_perc}%)" if p_comp_perc == 46 else f"Complemento P₂O₅ ({p_comp_perc}%)"
+
         if k == 0:
             prod_p = p_req / p_conc
-            prod_k_kcl = k_req / 0.60
+            prod_k_kcl = k_req / k_conc_comp
             return {
                 "suprido_primeiro": "P2O5",
                 "produto_formulado_kg": round(prod_p, 2),
                 "produto_kcl_kg": round(prod_k_kcl, 2),
                 "produto_p_comp_kg": 0.0,
-                "observacao": "Fósforo suprido primeiro pelo formulado. Saldo de Potássio suprido integralmente via KCl (60%)."
+                "k_comp_perc": k_comp_perc,
+                "p_comp_perc": p_comp_perc,
+                "observacao": f"Fósforo suprido primeiro pelo formulado. Saldo de Potássio suprido via {label_k}."
             }
         else:
             prod_p_cand = p_req / p_conc
@@ -86,25 +94,29 @@ def calcular_adubacao(cultura: str, expectativa_sacos: float, formulado_str: str
                 prod_formulado = prod_p_cand
                 k_suprido = prod_formulado * k_conc
                 k_restante = max(0.0, k_req - k_suprido)
-                prod_kcl = k_restante / 0.60
+                prod_kcl = k_restante / k_conc_comp
                 return {
                     "suprido_primeiro": "P2O5",
                     "produto_formulado_kg": round(prod_formulado, 2),
                     "produto_kcl_kg": round(prod_kcl, 2),
                     "produto_p_comp_kg": 0.0,
-                    "observacao": "Fósforo suprido primeiro pelo formulado. Saldo de Potássio suprido via KCl (60%)."
+                    "k_comp_perc": k_comp_perc,
+                    "p_comp_perc": p_comp_perc,
+                    "observacao": f"Fósforo suprido primeiro pelo formulado. Saldo de Potássio suprido via {label_k}."
                 }
             else:
                 prod_formulado = prod_k_cand
                 p_suprido = prod_formulado * p_conc
                 p_restante = max(0.0, p_req - p_suprido)
-                prod_p_comp = p_restante / 0.46
+                prod_p_comp = p_restante / p_conc_comp
                 return {
                     "suprido_primeiro": "K2O",
                     "produto_formulado_kg": round(prod_formulado, 2),
                     "produto_kcl_kg": 0.0,
                     "produto_p_comp_kg": round(prod_p_comp, 2),
-                    "observacao": "Potássio suprido primeiro pelo formulado. Saldo de Fósforo suprido via Super Triplo (46%)."
+                    "k_comp_perc": k_comp_perc,
+                    "p_comp_perc": p_comp_perc,
+                    "observacao": f"Potássio suprido primeiro pelo formulado. Saldo de Fósforo suprido via {label_p}."
                 }
 
     resultado["detalhes"]["manutencao"] = calc_cenario(p_manut_dose, k_manut_dose)
