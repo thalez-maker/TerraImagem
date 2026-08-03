@@ -190,9 +190,10 @@ body {
 }
 
 .stat-value {
-  font-size: 1.6rem;
+  font-size: clamp(1.15rem, 1.6vw, 1.45rem);
   font-weight: 800;
   color: var(--accent-lime);
+  line-height: 1.25;
 }
 
 .stat-label {
