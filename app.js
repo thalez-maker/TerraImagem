@@ -321,3 +321,311 @@ document.addEventListener('DOMContentLoaded', () => {
     obsRepo.innerText = rep.observacao;
   }
 });
+
+
+// ==========================================
+// CLIENT-SIDE SHAPEFILE & ZIP GENERATOR ENGINE
+// ==========================================
+
+function latLonToUtm(lon, lat) {
+  const zone = Math.floor((lon + 180) / 6) + 1;
+  const epsg = 31960 + zone;
+  const cm = zone * 6 - 183;
+  const rad = Math.PI / 180;
+  
+  const a = 6378137.0;
+  const f = 1 / 298.257222101;
+  const b = a * (1 - f);
+  const e2 = (a * a - b * b) / (a * a);
+  const ep2 = (a * a - b * b) / (b * b);
+  const k0 = 0.9996;
+  
+  const phi = lat * rad;
+  const lambda = lon * rad;
+  const lambda0 = cm * rad;
+  
+  const N = a / Math.sqrt(1 - e2 * Math.sin(phi) * Math.sin(phi));
+  const T = Math.tan(phi) * Math.tan(phi);
+  const C = ep2 * Math.cos(phi) * Math.cos(phi);
+  const A = (lambda - lambda0) * Math.cos(phi);
+  
+  const M = a * (
+    (1 - e2/4 - 3*e2*e2/64 - 5*e2*e2*e2/256) * phi -
+    (3*e2/8 + 3*e2*e2/32 + 45*e2*e2*e2/1024) * Math.sin(2*phi) +
+    (15*e2*e2/256 + 45*e2*e2*e2/1024) * Math.sin(4*phi) -
+    (35*e2*e2*e2/3072) * Math.sin(6*phi)
+  );
+  
+  const x = k0 * N * (A + (1-T+C)*A*A*A/6 + (5-18*T+T*T+72*C-58*ep2)*A*A*A*A*A/120) + 500000.0;
+  let y = k0 * (M + N * Math.tan(phi) * (A*A/2 + (5-T+9*C+4*C*C)*A*A*A*A/24 + (61-58*T+T*T+600*C-330*ep2)*A*A*A*A*A*A/720));
+  if (lat < 0) y += 10000000.0;
+  
+  return { x, y, zone, epsg };
+}
+
+function parseKMLCoordinates(kmlText) {
+  const parser = new DOMParser();
+  const xmlDoc = parser.parseFromString(kmlText, "text/xml");
+  const coordNodes = xmlDoc.getElementsByTagName("coordinates");
+  
+  let rawStr = "";
+  for (let i = 0; i < coordNodes.length; i++) {
+    rawStr += " " + coordNodes[i].textContent;
+  }
+  
+  if (!rawStr.trim()) {
+    // Regex fallback
+    const match = kmlText.match(/<coordinates>([\s\S]*?)<\/coordinates>/i);
+    if (match) rawStr = match[1];
+  }
+  
+  const tokens = rawStr.trim().split(/\s+/);
+  const coords = [];
+  
+  tokens.forEach(tok => {
+    const parts = tok.split(',');
+    if (parts.length >= 2) {
+      const lon = parseFloat(parts[0]);
+      const lat = parseFloat(parts[1]);
+      if (!isNaN(lon) && !isNaN(lat)) {
+        coords.push([lon, lat]);
+      }
+    }
+  });
+  
+  if (coords.length < 3) {
+    throw new Error('Não foi possível extrair coordenadas válidas do arquivo KML.');
+  }
+  
+  // Fechar polígono se necessário
+  const first = coords[0];
+  const last = coords[coords.length - 1];
+  if (first[0] !== last[0] || first[1] !== last[1]) {
+    coords.push([first[0], first[1]]);
+  }
+  
+  return coords;
+}
+
+function calcularAreaHectaresUTM(utmCoords) {
+  let area = 0;
+  const n = utmCoords.length;
+  for (let i = 0; i < n - 1; i++) {
+    area += utmCoords[i].x * utmCoords[i+1].y - utmCoords[i+1].x * utmCoords[i].y;
+  }
+  return Math.abs(area) / 2.0 / 10000.0; // m² para ha
+}
+
+function createShpAndShxBuffers(utmCoords) {
+  const numPoints = utmCoords.length;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  
+  utmCoords.forEach(c => {
+    if (c.x < minX) minX = c.x;
+    if (c.x > maxX) maxX = c.x;
+    if (c.y < minY) minY = c.y;
+    if (c.y > maxY) maxY = c.y;
+  });
+  
+  // Content length of 1 polygon: 4 (type) + 32 (box) + 4 (numParts) + 4 (numPoints) + 4 (parts[0]) + numPoints*16
+  const recContentLengthBytes = 4 + 32 + 4 + 4 + 4 + (numPoints * 16);
+  const shpLengthBytes = 100 + 8 + recContentLengthBytes;
+  const shxLengthBytes = 100 + 8;
+  
+  const shpBuffer = new ArrayBuffer(shpLengthBytes);
+  const shpView = new DataView(shpBuffer);
+  
+  // SHP Header (Big Endian file code & length)
+  shpView.setInt32(0, 9994, false); // File Code
+  shpView.setInt32(24, shpLengthBytes / 2, false); // File Length in 16-bit words
+  shpView.setInt32(28, 1000, true); // Version
+  shpView.setInt32(32, 5, true); // Shape Type 5 (Polygon)
+  
+  // Bounding Box (Little Endian Doubles)
+  shpView.setFloat64(36, minX, true);
+  shpView.setFloat64(44, minY, true);
+  shpView.setFloat64(52, maxX, true);
+  shpView.setFloat64(60, maxY, true);
+  
+  // Record Header
+  shpView.setInt32(100, 1, false); // Record Number 1
+  shpView.setInt32(104, recContentLengthBytes / 2, false); // Content Length in words
+  
+  // Record Contents
+  let offset = 108;
+  shpView.setInt32(offset, 5, true); offset += 4; // Shape Type 5
+  shpView.setFloat64(offset, minX, true); offset += 8;
+  shpView.setFloat64(offset, minY, true); offset += 8;
+  shpView.setFloat64(offset, maxX, true); offset += 8;
+  shpView.setFloat64(offset, maxY, true); offset += 8;
+  
+  shpView.setInt32(offset, 1, true); offset += 4; // NumParts
+  shpView.setInt32(offset, numPoints, true); offset += 4; // NumPoints
+  shpView.setInt32(offset, 0, true); offset += 4; // Part 0 start index
+  
+  utmCoords.forEach(c => {
+    shpView.setFloat64(offset, c.x, true); offset += 8;
+    shpView.setFloat64(offset, c.y, true); offset += 8;
+  });
+  
+  // SHX Buffer
+  const shxBuffer = new ArrayBuffer(shxLengthBytes);
+  const shxView = new DataView(shxBuffer);
+  shxView.setInt32(0, 9994, false);
+  shxView.setInt32(24, shxLengthBytes / 2, false);
+  shxView.setInt32(28, 1000, true);
+  shxView.setInt32(32, 5, true);
+  shxView.setFloat64(36, minX, true);
+  shxView.setFloat64(44, minY, true);
+  shxView.setFloat64(52, maxX, true);
+  shxView.setFloat64(60, maxY, true);
+  
+  shxView.setInt32(100, 100 / 2, false); // Record offset in 16-bit words
+  shxView.setInt32(104, recContentLengthBytes / 2, false);
+  
+  return { shpBuffer, shxBuffer };
+}
+
+function createDbfBuffer(dadosCalc, areaHa, epsg) {
+  // DBF File header (32 bytes) + 1 Field Header (32 bytes * 11 fields) + Header Terminator (1 byte) + Record (1 header byte + record bytes) + EOF (1 byte)
+  const fields = [
+    { name: "CULTURA", type: "C", len: 20, dec: 0, val: dadosCalc.cultura || "Soja" },
+    { name: "EXPECTAT", type: "N", len: 10, dec: 2, val: (dadosCalc.expectativa_sacos || 60).toFixed(2) },
+    { name: "FORMULAD", type: "C", len: 15, dec: 0, val: dadosCalc.formulado || "05-10-30" },
+    { name: "P_MANUT", type: "N", len: 10, dec: 2, val: (dadosCalc.p2o5_manutencao_kg || 0).toFixed(2) },
+    { name: "K_MANUT", type: "N", len: 10, dec: 2, val: (dadosCalc.k2o_manutencao_kg || 0).toFixed(2) },
+    { name: "P_REPO", type: "N", len: 10, dec: 2, val: (dadosCalc.p2o5_reposicao_kg || 0).toFixed(2) },
+    { name: "K_REPO", type: "N", len: 10, dec: 2, val: (dadosCalc.k2o_reposicao_kg || 0).toFixed(2) },
+    { name: "FORM_KG", type: "N", len: 10, dec: 2, val: (dadosCalc.detalhes.manutencao.produto_formulado_kg || 0).toFixed(2) },
+    { name: "KCL_KG", type: "N", len: 10, dec: 2, val: (dadosCalc.detalhes.manutencao.produto_kcl_kg || 0).toFixed(2) },
+    { name: "AREA_HA", type: "N", len: 10, dec: 2, val: areaHa.toFixed(2) },
+    { name: "EPSG_UTM", type: "N", len: 6, dec: 0, val: epsg.toString() }
+  ];
+  
+  let recLen = 1;
+  fields.forEach(f => recLen += f.len);
+  
+  const headerLen = 32 + (fields.length * 32) + 1;
+  const totalLen = headerLen + recLen + 1;
+  
+  const buf = new Uint8Array(totalLen);
+  buf[0] = 0x03; // dBase III
+  buf[1] = 126; buf[2] = 8; buf[3] = 3; // YY MM DD
+  
+  // Num Records = 1
+  buf[4] = 1; buf[5] = 0; buf[6] = 0; buf[7] = 0;
+  
+  // Header Length
+  buf[8] = headerLen & 0xFF; buf[9] = (headerLen >> 8) & 0xFF;
+  
+  // Record Length
+  buf[10] = recLen & 0xFF; buf[11] = (recLen >> 8) & 0xFF;
+  
+  let offset = 32;
+  fields.forEach(f => {
+    for (let i = 0; i < 11; i++) {
+      buf[offset + i] = i < f.name.length ? f.name.charCodeAt(i) : 0;
+    }
+    buf[offset + 11] = f.type.charCodeAt(0);
+    buf[offset + 16] = f.len;
+    buf[offset + 17] = f.dec;
+    offset += 32;
+  });
+  
+  buf[offset] = 0x0D; // Header Terminator
+  offset += 1;
+  
+  buf[offset] = 0x20; // Record deletion flag (space = valid)
+  offset += 1;
+  
+  fields.forEach(f => {
+    const strVal = f.val.toString().padStart(f.len, ' ').substring(0, f.len);
+    for (let i = 0; i < f.len; i++) {
+      buf[offset + i] = strVal.charCodeAt(i);
+    }
+    offset += f.len;
+  });
+  
+  buf[offset] = 0x1A; // EOF
+  return buf.buffer;
+}
+
+function getPrjContent(epsg, zone) {
+  const cm = zone * 6 - 183;
+  return `PROJCS["SIRGAS 2000 / UTM zone ${zone}S",GEOGCS["SIRGAS 2000",DATUM["Sistema_de_Referencia_Geocentrico_para_las_Americas_2000",SPHEROID["GRS 1980",6378137,298.257222101]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]],PROJECTION["Transverse_Mercator"],PARAMETER["latitude_of_origin",0],PARAMETER["central_meridian",${cm}],PARAMETER["scale_factor",0.9996],PARAMETER["false_easting",500000],PARAMETER["false_northing",10000000],UNIT["metre",1]]`;
+}
+
+function getTxtReportContent(dadosCalc, nomeTalhao, areaHa, epsg, zone) {
+  const manut = dadosCalc.detalhes.manutencao;
+  const repo = dadosCalc.detalhes.reposicao;
+  
+  return `================================================================================
+TERRAIMAGEM - TECNOLOGIA AGRONÔMICA E AGRICULTURA DE PRECISÃO
+RELATÓRIO TÉCNICO DE RECOMENDAÇÃO DE ADUBAÇÃO E APLICAÇÃO GEOESPACIAL
+================================================================================
+
+IDENTIFICAÇÃO DO TALHÃO: ${nomeTalhao}
+ÁREA CALCULADA: ${areaHa.toFixed(2)} ha
+SISTEMA DE PROJEÇÃO: SIRGAS 2000 / UTM Zone ${zone}S (EPSG:${epsg})
+
+CULTURA AGRICOLA: ${dadosCalc.cultura}
+EXPECTATIVA DE PRODUTIVIDADE: ${dadosCalc.expectativa_sacos} sc/ha (${(dadosCalc.expectativa_sacos*0.06).toFixed(2)} t/ha)
+FORMULADO N-P-K UTILIZADO: ${dadosCalc.formulado}
+
+--------------------------------------------------------------------------------
+1. EXTRAÇÃO DE NUTRIENTES PELA CULTURA (kg/ha)
+--------------------------------------------------------------------------------
+- Fósforo (P₂O₅) Manutenção: ${dadosCalc.p2o5_manutencao_kg.toFixed(2)} kg/ha
+- Potássio (K₂O) Manutenção: ${dadosCalc.k2o_manutencao_kg.toFixed(2)} kg/ha
+- Fósforo (P₂O₅) Reposição:   ${dadosCalc.p2o5_reposicao_kg.toFixed(2)} kg/ha
+- Potássio (K₂O) Reposição:   ${dadosCalc.k2o_reposicao_kg.toFixed(2)} kg/ha
+
+--------------------------------------------------------------------------------
+2. RECOMENDAÇÃO DE PRODUTOS COMERCIALIZÁVEIS (REGRA DO MENOR VALOR)
+--------------------------------------------------------------------------------
+--- CENÁRIO 1: MANUTENÇÃO ---
+- Produto Formulado (${dadosCalc.formulado}): ${manut.produto_formulado_kg.toFixed(2)} kg/ha
+- Complemento Potássio (KCl 60%): ${manut.produto_kcl_kg.toFixed(2)} kg/ha
+- Complemento Fósforo (Super Triplo 46%): ${manut.produto_p_comp_kg.toFixed(2)} kg/ha
+Nota: ${manut.observacao}
+
+--- CENÁRIO 2: REPOSIÇÃO ---
+- Produto Formulado (${dadosCalc.formulado}): ${repo.produto_formulado_kg.toFixed(2)} kg/ha
+- Complemento Potássio (KCl 60%): ${repo.produto_kcl_kg.toFixed(2)} kg/ha
+- Complemento Fósforo (Super Triplo 46%): ${repo.produto_p_comp_kg.toFixed(2)} kg/ha
+Nota: ${repo.observacao}
+
+================================================================================
+GERADO AUTOMATICAMENTE VIA TERRAIMAGEM - PRECISION AGRI PLATFORM
+================================================================================`;
+}
+
+async function gerarShapefileZipCliente(kmlText, dadosCalc, nomeTalhao) {
+  const coordsLatLon = parseKMLCoordinates(kmlText);
+  const utmCoords = coordsLatLon.map(c => latLonToUtm(c[0], c[1]));
+  
+  const zone = utmCoords[0].zone;
+  const epsg = utmCoords[0].epsg;
+  const areaHa = calcularAreaHectaresUTM(utmCoords);
+  
+  const { shpBuffer, shxBuffer } = createShpAndShxBuffers(utmCoords);
+  const dbfBuffer = createDbfBuffer(dadosCalc, areaHa, epsg);
+  const prjContent = getPrjContent(epsg, zone);
+  const txtContent = getTxtReportContent(dadosCalc, nomeTalhao, areaHa, epsg, zone);
+  
+  if (typeof JSZip === 'undefined') {
+    throw new Error('Bibliotecas de empacotamento ZIP ainda estão carregando. Aguarde um segundo e tente novamente.');
+  }
+  
+  const zip = new JSZip();
+  const baseName = `Recomendacao_${nomeTalhao}`;
+  
+  zip.file(`${baseName}.shp`, shpBuffer);
+  zip.file(`${baseName}.shx`, shxBuffer);
+  zip.file(`${baseName}.dbf`, dbfBuffer);
+  zip.file(`${baseName}.prj`, prjContent);
+  zip.file(`LEIA_ME_RECOMENDACAO.txt`, txtContent);
+  
+  const zipBlob = await zip.generateAsync({ type: "blob" });
+  return { zipBlob, areaHa, epsg, fileName: `${baseName}.zip` };
+}
