@@ -63,23 +63,29 @@ body {
 
 .brand-logo-pill {
   background: #ffffff;
-  padding: 8px 24px;
-  border-radius: 9999px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.4);
+  padding: 10px 20px;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   display: inline-flex;
   align-items: center;
-  transition: transform 0.2s ease;
+  justify-content: center;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .brand-logo-pill:hover {
-  transform: scale(1.03);
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 8px 25px rgba(139, 189, 42, 0.35);
 }
 
 .nav-logo-img {
-  height: 48px;
+  height: 44px;
   width: auto;
+  max-width: 100%;
+  object-fit: contain;
   display: block;
+  border-radius: 6px;
 }
 
 .nav-links {
