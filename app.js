@@ -32,6 +32,19 @@ document.addEventListener('DOMContentLoaded', () => {
   const nomeTalhao = document.getElementById('nomeTalhao');
   const shapefileStatus = document.getElementById('shapefileStatus');
 
+  // FAQ Accordion Toggle
+  const faqItems = document.querySelectorAll('.faq-item');
+  faqItems.forEach(item => {
+    const question = item.querySelector('.faq-question');
+    question.addEventListener('click', () => {
+      const isActive = item.classList.contains('active');
+      faqItems.forEach(i => i.classList.remove('active'));
+      if (!isActive) {
+        item.classList.add('active');
+      }
+    });
+  });
+
   const TABELA_CULTURAS = {
     "Soja": { p_manut: 15, p_repo: 14, k_manut: 25, k_repo: 20 },
     "Milho": { p_manut: 15, p_repo: 8, k_manut: 10, k_repo: 6 },
@@ -122,7 +135,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   }
 
-  // Formatar número para padrão BR (1.234,56)
   function formatBR(val, decimalPlaces = 2) {
     if (val === undefined || val === null) return '0,00';
     return Number(val).toLocaleString('pt-BR', {
@@ -131,7 +143,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Ação de cálculo
   btnCalcular.addEventListener('click', async () => {
     alertError.style.display = 'none';
 
@@ -171,7 +182,6 @@ document.addEventListener('DOMContentLoaded', () => {
           throw new Error();
         }
       } catch (e) {
-        // Fallback local instantâneo em JavaScript para GitHub Pages estático
         data = calcularAdubacaoJS(cultura, parseFloat(expStr), formuladoStr);
       }
 
@@ -184,12 +194,11 @@ document.addEventListener('DOMContentLoaded', () => {
         <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
         </svg>
-        Calcular Fertilizantes
+        Calcular Doses Recomendadas
       `;
     }
   });
 
-  // Ação de upload de KML e geração de Shapefile
   btnGerarShapefile.addEventListener('click', async () => {
     shapefileStatus.innerText = '';
     
@@ -237,7 +246,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const areaHa = res.headers.get('X-Area-Hectares');
       const epsg = res.headers.get('X-EPSG-Utm');
 
-      // Baixar o arquivo ZIP
       const blob = await res.blob();
       const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -252,7 +260,7 @@ document.addEventListener('DOMContentLoaded', () => {
       shapefileStatus.innerText = `✅ Sucesso! Pacote Shapefile gerado em SIRGAS 2000 UTM (EPSG:${epsg || '31982'}). Área do talhão: ${areaHa} ha.`;
     } catch (err) {
       shapefileStatus.style.color = '#ef4444';
-      shapefileStatus.innerText = `❌ Nota: Para processamento de Shapefile em SIRGAS 2000 UTM, conecte o backend FastAPI ou execute localmente.`;
+      shapefileStatus.innerText = `❌ Nota: Para processamento geoespacial em SIRGAS 2000 UTM no GitHub Pages, conecte o backend FastAPI ou execute localmente.`;
     } finally {
       btnGerarShapefile.disabled = false;
       btnGerarShapefile.innerHTML = `
@@ -277,13 +285,11 @@ document.addEventListener('DOMContentLoaded', () => {
     resExpectativa.innerText = `${formatBR(d.expectativa_sacos, 1)} sc/ha (${formatBR(d.expectativa_ton, 2)} t/ha)`;
     resFormulado.innerText = d.formulado;
 
-    // Doses Nutricionais
     pManutDose.innerText = `${formatBR(d.p2o5_manutencao_kg)} kg/ha`;
     pRepoDose.innerText = `${formatBR(d.p2o5_reposicao_kg)} kg/ha`;
     kManutDose.innerText = `${formatBR(d.k2o_manutencao_kg)} kg/ha`;
     kRepoDose.innerText = `${formatBR(d.k2o_reposicao_kg)} kg/ha`;
 
-    // Produtos - Manutenção
     const man = d.detalhes.manutencao;
     manutProd.innerText = `${formatBR(man.produto_formulado_kg)} kg/ha (${d.formulado})`;
     
@@ -299,7 +305,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     obsManut.innerText = man.observacao;
 
-    // Produtos - Reposição
     const rep = d.detalhes.reposicao;
     repoProd.innerText = `${formatBR(rep.produto_formulado_kg)} kg/ha (${d.formulado})`;
     
