@@ -2,6 +2,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const selectCultura = document.getElementById('cultura');
   const inputExpectativa = document.getElementById('expectativa');
   const inputFormulado = document.getElementById('formulado');
+  const inputKCompPerc = document.getElementById('kCompPerc');
+  const inputPCompPerc = document.getElementById('pCompPerc');
+  
   const btnCalcular = document.getElementById('btnCalcular');
   const alertError = document.getElementById('alertError');
   
@@ -60,7 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
     "Girassol": { p_manut: 15, p_repo: 14, k_manut: 15, k_repo: 6 }
   };
 
-  function calcularAdubacaoJS(cultura, expectativa_sacos, formulado_str) {
+  function calcularAdubacaoJS(cultura, expectativa_sacos, formulado_str, k_comp_perc = 60, p_comp_perc = 46) {
     const cleaned = formulado_str.trim().replace(/\s+/g, '');
     const tokens = cleaned.split(/[-–,;:_]/);
     if (tokens.length !== 3) throw new Error("O formulado deve estar no formato XX-YY-ZZ (ex: 05-10-30)");
@@ -70,7 +73,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const k = parseFloat(tokens[2].replace(',', '.'));
     
     if (isNaN(p) || p <= 0) throw new Error("A concentração de Fósforo (P) deve ser maior que zero.");
-    
+
+    const k_conc_comp = (k_comp_perc && k_comp_perc > 0) ? (k_comp_perc / 100.0) : 0.60;
+    const p_conc_comp = (p_comp_perc && p_comp_perc > 0) ? (p_comp_perc / 100.0) : 0.46;
+
+    const label_k = (k_comp_perc === 60) ? "KCl (60%)" : `Complemento K₂O (${k_comp_perc}%)`;
+    const label_p = (p_comp_perc === 46) ? "Super Triplo (46%)" : `Complemento P₂O₅ (${p_comp_perc}%)`;
+
     const exp_ton = (expectativa_sacos * 60.0) / 1000.0;
     const idx = TABELA_CULTURAS[cultura];
     if (!idx) throw new Error("Cultura inválida selecionada.");
@@ -88,9 +97,11 @@ document.addEventListener('DOMContentLoaded', () => {
         return {
           suprido_primeiro: "P2O5",
           produto_formulado_kg: Math.round((p_req / p_conc) * 100) / 100,
-          produto_kcl_kg: Math.round((k_req / 0.60) * 100) / 100,
+          produto_kcl_kg: Math.round((k_req / k_conc_comp) * 100) / 100,
           produto_p_comp_kg: 0,
-          observacao: "Fósforo suprido primeiro pelo formulado. Saldo de Potássio suprido integralmente via KCl (60%)."
+          k_comp_perc: k_comp_perc,
+          p_comp_perc: p_comp_perc,
+          observacao: `Fósforo suprido primeiro pelo formulado. Saldo de Potássio suprido integralmente via ${label_k}.`
         };
       } else {
         const p_cand = p_req / p_conc;
@@ -102,9 +113,11 @@ document.addEventListener('DOMContentLoaded', () => {
           return {
             suprido_primeiro: "P2O5",
             produto_formulado_kg: Math.round(prod * 100) / 100,
-            produto_kcl_kg: Math.round((k_rest / 0.60) * 100) / 100,
+            produto_kcl_kg: Math.round((k_rest / k_conc_comp) * 100) / 100,
             produto_p_comp_kg: 0,
-            observacao: "Fósforo suprido primeiro pelo formulado. Saldo de Potássio suprido via KCl (60%)."
+            k_comp_perc: k_comp_perc,
+            p_comp_perc: p_comp_perc,
+            observacao: `Fósforo suprido primeiro pelo formulado. Saldo de Potássio suprido via ${label_k}.`
           };
         } else {
           const prod = k_cand;
@@ -114,8 +127,10 @@ document.addEventListener('DOMContentLoaded', () => {
             suprido_primeiro: "K2O",
             produto_formulado_kg: Math.round(prod * 100) / 100,
             produto_kcl_kg: 0,
-            produto_p_comp_kg: Math.round((p_rest / 0.46) * 100) / 100,
-            observacao: "Potássio suprido primeiro pelo formulado. Saldo de Fósforo suprido via Super Triplo (46%)."
+            produto_p_comp_kg: Math.round((p_rest / p_conc_comp) * 100) / 100,
+            k_comp_perc: k_comp_perc,
+            p_comp_perc: p_comp_perc,
+            observacao: `Potássio suprido primeiro pelo formulado. Saldo de Fósforo suprido via ${label_p}.`
           };
         }
       }
@@ -126,6 +141,8 @@ document.addEventListener('DOMContentLoaded', () => {
       expectativa_sacos: expectativa_sacos,
       expectativa_ton: exp_ton,
       formulado: `${String(Math.round(n)).padStart(2,'0')}-${String(Math.round(p)).padStart(2,'0')}-${String(Math.round(k)).padStart(2,'0')}`,
+      k_comp_perc: k_comp_perc,
+      p_comp_perc: p_comp_perc,
       p2o5_manutencao_kg: Math.round(p_man_dose * 100) / 100,
       p2o5_reposicao_kg: Math.round(p_rep_dose * 100) / 100,
       k2o_manutencao_kg: Math.round(k_man_dose * 100) / 100,
@@ -152,6 +169,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const expStr = inputExpectativa.value.trim().replace(',', '.');
     const formuladoStr = inputFormulado.value.trim();
 
+    const kCompVal = parseFloat((inputKCompPerc ? inputKCompPerc.value.trim() : '60').replace(',', '.')) || 60.0;
+    const pCompVal = parseFloat((inputPCompPerc ? inputPCompPerc.value.trim() : '46').replace(',', '.')) || 46.0;
+
     if (!expStr || isNaN(parseFloat(expStr)) || parseFloat(expStr) <= 0) {
       showError('Por favor, informe uma expectativa de produção válida (maior que zero).');
       return;
@@ -174,7 +194,9 @@ document.addEventListener('DOMContentLoaded', () => {
           body: JSON.stringify({
             cultura: cultura,
             expectativa: parseFloat(expStr),
-            formulado: formuladoStr
+            formulado: formuladoStr,
+            k_comp_perc: kCompVal,
+            p_comp_perc: pCompVal
           })
         });
 
@@ -184,7 +206,7 @@ document.addEventListener('DOMContentLoaded', () => {
           throw new Error();
         }
       } catch (e) {
-        data = calcularAdubacaoJS(cultura, parseFloat(expStr), formuladoStr);
+        data = calcularAdubacaoJS(cultura, parseFloat(expStr), formuladoStr, kCompVal, pCompVal);
       }
 
       exibirResultados(data);
@@ -227,6 +249,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const cultura = selectCultura.value;
     const formuladoStr = inputFormulado.value.trim();
+    const kCompVal = parseFloat((inputKCompPerc ? inputKCompPerc.value.trim() : '60').replace(',', '.')) || 60.0;
+    const pCompVal = parseFloat((inputPCompPerc ? inputPCompPerc.value.trim() : '46').replace(',', '.')) || 46.0;
     const nomeTalhaoVal = (nomeTalhao.value.trim() || 'Talhao_1').replace(/[^a-zA-Z0-9_]/g, '_');
 
     try {
@@ -241,6 +265,8 @@ document.addEventListener('DOMContentLoaded', () => {
         formData.append('cultura', cultura);
         formData.append('expectativa', parseFloat(expStr));
         formData.append('formulado', formuladoStr);
+        formData.append('k_comp_perc', kCompVal);
+        formData.append('p_comp_perc', pCompVal);
         formData.append('nome_talhao', nomeTalhaoVal);
 
         const res = await fetch('/api/gerar-shapefile', {
@@ -275,7 +301,7 @@ document.addEventListener('DOMContentLoaded', () => {
       reader.onload = async function(e) {
         try {
           const kmlText = e.target.result;
-          const dadosCalc = calcularAdubacaoJS(cultura, parseFloat(expStr), formuladoStr);
+          const dadosCalc = calcularAdubacaoJS(cultura, parseFloat(expStr), formuladoStr, kCompVal, pCompVal);
           const result = await gerarShapefileZipCliente(kmlText, dadosCalc, nomeTalhaoVal);
           
           const url = window.URL.createObjectURL(result.zipBlob);
@@ -335,14 +361,17 @@ document.addEventListener('DOMContentLoaded', () => {
     kManutDose.innerText = `${formatBR(d.k2o_manutencao_kg)} kg/ha`;
     kRepoDose.innerText = `${formatBR(d.k2o_reposicao_kg)} kg/ha`;
 
+    const kLabel = (d.k_comp_perc === 60) ? "KCl 60%" : `Comp. K₂O ${d.k_comp_perc}%`;
+    const pLabel = (d.p_comp_perc === 46) ? "Super Triplo 46%" : (d.p_comp_perc === 52 ? "MAP 52%" : `Comp. P₂O₅ ${d.p_comp_perc}%`);
+
     const man = d.detalhes.manutencao;
     manutProd.innerText = `${formatBR(man.produto_formulado_kg)} kg/ha (${d.formulado})`;
     
     if (man.produto_kcl_kg > 0) {
-      manutComp.innerText = `${formatBR(man.produto_kcl_kg)} kg/ha (KCl 60%)`;
+      manutComp.innerText = `${formatBR(man.produto_kcl_kg)} kg/ha (${kLabel})`;
       manutComp.style.color = "var(--accent-lime)";
     } else if (man.produto_p_comp_kg > 0) {
-      manutComp.innerText = `${formatBR(man.produto_p_comp_kg)} kg/ha (Super Triplo 46%)`;
+      manutComp.innerText = `${formatBR(man.produto_p_comp_kg)} kg/ha (${pLabel})`;
       manutComp.style.color = "var(--accent-lime)";
     } else {
       manutComp.innerText = `0 kg/ha`;
@@ -354,10 +383,10 @@ document.addEventListener('DOMContentLoaded', () => {
     repoProd.innerText = `${formatBR(rep.produto_formulado_kg)} kg/ha (${d.formulado})`;
     
     if (rep.produto_kcl_kg > 0) {
-      repoComp.innerText = `${formatBR(rep.produto_kcl_kg)} kg/ha (KCl 60%)`;
+      repoComp.innerText = `${formatBR(rep.produto_kcl_kg)} kg/ha (${kLabel})`;
       repoComp.style.color = "var(--accent-lime)";
     } else if (rep.produto_p_comp_kg > 0) {
-      repoComp.innerText = `${formatBR(rep.produto_p_comp_kg)} kg/ha (Super Triplo 46%)`;
+      repoComp.innerText = `${formatBR(rep.produto_p_comp_kg)} kg/ha (${pLabel})`;
       repoComp.style.color = "var(--accent-lime)";
     } else {
       repoComp.innerText = `0 kg/ha`;
@@ -602,6 +631,8 @@ SISTEMA DE PROJEÇÃO: SIRGAS 2000 / UTM Zone ${zone}S (EPSG:${epsg})
 CULTURA AGRÍCOLA: ${dadosCalc.cultura}
 EXPECTATIVA DE PRODUTIVIDADE: ${dadosCalc.expectativa_sacos} sc/ha (${(dadosCalc.expectativa_sacos*0.06).toFixed(2)} t/ha)
 FORMULADO N-P-K UTILIZADO: ${dadosCalc.formulado}
+GARANTIA COMPLEMENTO K: ${dadosCalc.k_comp_perc || 60}%
+GARANTIA COMPLEMENTO P: ${dadosCalc.p_comp_perc || 46}%
 
 --------------------------------------------------------------------------------
 1. EXTRAÇÃO DE NUTRIENTES PELA CULTURA (kg/ha)
@@ -616,14 +647,14 @@ FORMULADO N-P-K UTILIZADO: ${dadosCalc.formulado}
 --------------------------------------------------------------------------------
 --- CENÁRIO 1: MANUTENÇÃO ---
 - Produto Formulado (${dadosCalc.formulado}): ${manut.produto_formulado_kg.toFixed(2)} kg/ha
-- Complemento Potássio (KCl 60%): ${manut.produto_kcl_kg.toFixed(2)} kg/ha
-- Complemento Fósforo (Super Triplo 46%): ${manut.produto_p_comp_kg.toFixed(2)} kg/ha
+- Complemento Potássio: ${manut.produto_kcl_kg.toFixed(2)} kg/ha
+- Complemento Fósforo: ${manut.produto_p_comp_kg.toFixed(2)} kg/ha
 Nota: ${manut.observacao}
 
 --- CENÁRIO 2: REPOSIÇÃO ---
 - Produto Formulado (${dadosCalc.formulado}): ${repo.produto_formulado_kg.toFixed(2)} kg/ha
-- Complemento Potássio (KCl 60%): ${repo.produto_kcl_kg.toFixed(2)} kg/ha
-- Complemento Fósforo (Super Triplo 46%): ${repo.produto_p_comp_kg.toFixed(2)} kg/ha
+- Complemento Potássio: ${repo.produto_kcl_kg.toFixed(2)} kg/ha
+- Complemento Fósforo: ${repo.produto_p_comp_kg.toFixed(2)} kg/ha
 Nota: ${repo.observacao}
 
 ================================================================================
