@@ -36,13 +36,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const faqItems = document.querySelectorAll('.faq-item');
   faqItems.forEach(item => {
     const question = item.querySelector('.faq-question');
-    question.addEventListener('click', () => {
-      const isActive = item.classList.contains('active');
-      faqItems.forEach(i => i.classList.remove('active'));
-      if (!isActive) {
-        item.classList.add('active');
-      }
-    });
+    if (question) {
+      question.addEventListener('click', () => {
+        const isActive = item.classList.contains('active');
+        faqItems.forEach(i => i.classList.remove('active'));
+        if (!isActive) {
+          item.classList.add('active');
+        }
+      });
+    }
   });
 
   const TABELA_CULTURAS = {
@@ -199,6 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // Client-Side Shapefile & ZIP Handler
   btnGerarShapefile.addEventListener('click', async () => {
     shapefileStatus.innerText = '';
     
@@ -222,46 +225,88 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('cultura', selectCultura.value);
-    formData.append('expectativa', parseFloat(expStr));
-    formData.append('formulado', inputFormulado.value.trim());
-    formData.append('nome_talhao', nomeTalhao.value.trim() || 'Talhao_1');
+    const cultura = selectCultura.value;
+    const formuladoStr = inputFormulado.value.trim();
+    const nomeTalhaoVal = (nomeTalhao.value.trim() || 'Talhao_1').replace(/[^a-zA-Z0-9_]/g, '_');
 
     try {
       btnGerarShapefile.disabled = true;
-      btnGerarShapefile.innerText = 'Processando mapa e gerando Shapefile...';
+      btnGerarShapefile.innerText = 'Gerando Shapefile (.ZIP)...';
+      shapefileStatus.innerText = '';
 
-      const res = await fetch('/api/gerar-shapefile', {
-        method: 'POST',
-        body: formData
-      });
+      // Tentar via backend primeiro se disponível
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('cultura', cultura);
+        formData.append('expectativa', parseFloat(expStr));
+        formData.append('formulado', formuladoStr);
+        formData.append('nome_talhao', nomeTalhaoVal);
 
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.detail || 'Erro ao gerar o arquivo Shapefile.');
+        const res = await fetch('/api/gerar-shapefile', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (res.ok) {
+          const blob = await res.blob();
+          const areaHa = res.headers.get('X-Area-Hectares') || '';
+          const epsgUtm = res.headers.get('X-EPSG-Utm') || '';
+
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `Recomendacao_${nomeTalhaoVal}.zip`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          window.URL.revokeObjectURL(url);
+
+          shapefileStatus.style.color = '#10b981';
+          shapefileStatus.innerHTML = `✔ Sucesso! Shapefile gerado (${areaHa} ha | EPSG:${epsgUtm} SIRGAS 2000 UTM). Download iniciado.`;
+          return;
+        }
+      } catch (e) {
+        // Processamento Client-side no navegador (GitHub Pages)
       }
 
-      const areaHa = res.headers.get('X-Area-Hectares');
-      const epsg = res.headers.get('X-EPSG-Utm');
+      // Leitura do arquivo KML pelo navegador
+      const reader = new FileReader();
+      reader.onload = async function(e) {
+        try {
+          const kmlText = e.target.result;
+          const dadosCalc = calcularAdubacaoJS(cultura, parseFloat(expStr), formuladoStr);
+          const result = await gerarShapefileZipCliente(kmlText, dadosCalc, nomeTalhaoVal);
+          
+          const url = window.URL.createObjectURL(result.zipBlob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = result.fileName;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          window.URL.revokeObjectURL(url);
 
-      const blob = await res.blob();
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = downloadUrl;
-      a.download = `Recomendacao_${nomeTalhao.value.trim() || 'Talhao_1'}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(downloadUrl);
+          shapefileStatus.style.color = '#10b981';
+          shapefileStatus.innerHTML = `✔ Sucesso! Pacote Shapefile gerado diretamente no navegador (${result.areaHa.toFixed(2)} ha | EPSG:${result.epsg} SIRGAS 2000 UTM). Download iniciado!`;
+        } catch (errShape) {
+          shapefileStatus.style.color = '#ef4444';
+          shapefileStatus.innerText = `❌ Erro ao processar KML: ${errShape.message}`;
+        } finally {
+          btnGerarShapefile.disabled = false;
+          btnGerarShapefile.innerHTML = `
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+            </svg>
+            Gerar e Baixar Pacote Shapefile (.ZIP)
+          `;
+        }
+      };
+      reader.readAsText(file);
 
-      shapefileStatus.style.color = 'var(--accent-lime)';
-      shapefileStatus.innerText = `✅ Sucesso! Pacote Shapefile gerado em SIRGAS 2000 UTM (EPSG:${epsg || '31982'}). Área do talhão: ${areaHa} ha.`;
     } catch (err) {
       shapefileStatus.style.color = '#ef4444';
-      shapefileStatus.innerText = `❌ Nota: Para processamento geoespacial em SIRGAS 2000 UTM no GitHub Pages, conecte o backend FastAPI ou execute localmente.`;
-    } finally {
+      shapefileStatus.innerText = `❌ Erro: ${err.message}`;
       btnGerarShapefile.disabled = false;
       btnGerarShapefile.innerHTML = `
         <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -322,7 +367,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-
 // ==========================================
 // CLIENT-SIDE SHAPEFILE & ZIP GENERATOR ENGINE
 // ==========================================
@@ -374,7 +418,6 @@ function parseKMLCoordinates(kmlText) {
   }
   
   if (!rawStr.trim()) {
-    // Regex fallback
     const match = kmlText.match(/<coordinates>([\s\S]*?)<\/coordinates>/i);
     if (match) rawStr = match[1];
   }
@@ -397,7 +440,6 @@ function parseKMLCoordinates(kmlText) {
     throw new Error('Não foi possível extrair coordenadas válidas do arquivo KML.');
   }
   
-  // Fechar polígono se necessário
   const first = coords[0];
   const last = coords[coords.length - 1];
   if (first[0] !== last[0] || first[1] !== last[1]) {
@@ -413,7 +455,7 @@ function calcularAreaHectaresUTM(utmCoords) {
   for (let i = 0; i < n - 1; i++) {
     area += utmCoords[i].x * utmCoords[i+1].y - utmCoords[i+1].x * utmCoords[i].y;
   }
-  return Math.abs(area) / 2.0 / 10000.0; // m² para ha
+  return Math.abs(area) / 2.0 / 10000.0;
 }
 
 function createShpAndShxBuffers(utmCoords) {
@@ -427,7 +469,6 @@ function createShpAndShxBuffers(utmCoords) {
     if (c.y > maxY) maxY = c.y;
   });
   
-  // Content length of 1 polygon: 4 (type) + 32 (box) + 4 (numParts) + 4 (numPoints) + 4 (parts[0]) + numPoints*16
   const recContentLengthBytes = 4 + 32 + 4 + 4 + 4 + (numPoints * 16);
   const shpLengthBytes = 100 + 8 + recContentLengthBytes;
   const shxLengthBytes = 100 + 8;
@@ -435,40 +476,35 @@ function createShpAndShxBuffers(utmCoords) {
   const shpBuffer = new ArrayBuffer(shpLengthBytes);
   const shpView = new DataView(shpBuffer);
   
-  // SHP Header (Big Endian file code & length)
-  shpView.setInt32(0, 9994, false); // File Code
-  shpView.setInt32(24, shpLengthBytes / 2, false); // File Length in 16-bit words
-  shpView.setInt32(28, 1000, true); // Version
-  shpView.setInt32(32, 5, true); // Shape Type 5 (Polygon)
+  shpView.setInt32(0, 9994, false);
+  shpView.setInt32(24, shpLengthBytes / 2, false);
+  shpView.setInt32(28, 1000, true);
+  shpView.setInt32(32, 5, true);
   
-  // Bounding Box (Little Endian Doubles)
   shpView.setFloat64(36, minX, true);
   shpView.setFloat64(44, minY, true);
   shpView.setFloat64(52, maxX, true);
   shpView.setFloat64(60, maxY, true);
   
-  // Record Header
-  shpView.setInt32(100, 1, false); // Record Number 1
-  shpView.setInt32(104, recContentLengthBytes / 2, false); // Content Length in words
+  shpView.setInt32(100, 1, false);
+  shpView.setInt32(104, recContentLengthBytes / 2, false);
   
-  // Record Contents
   let offset = 108;
-  shpView.setInt32(offset, 5, true); offset += 4; // Shape Type 5
+  shpView.setInt32(offset, 5, true); offset += 4;
   shpView.setFloat64(offset, minX, true); offset += 8;
   shpView.setFloat64(offset, minY, true); offset += 8;
   shpView.setFloat64(offset, maxX, true); offset += 8;
   shpView.setFloat64(offset, maxY, true); offset += 8;
   
-  shpView.setInt32(offset, 1, true); offset += 4; // NumParts
-  shpView.setInt32(offset, numPoints, true); offset += 4; // NumPoints
-  shpView.setInt32(offset, 0, true); offset += 4; // Part 0 start index
+  shpView.setInt32(offset, 1, true); offset += 4;
+  shpView.setInt32(offset, numPoints, true); offset += 4;
+  shpView.setInt32(offset, 0, true); offset += 4;
   
   utmCoords.forEach(c => {
     shpView.setFloat64(offset, c.x, true); offset += 8;
     shpView.setFloat64(offset, c.y, true); offset += 8;
   });
   
-  // SHX Buffer
   const shxBuffer = new ArrayBuffer(shxLengthBytes);
   const shxView = new DataView(shxBuffer);
   shxView.setInt32(0, 9994, false);
@@ -480,14 +516,13 @@ function createShpAndShxBuffers(utmCoords) {
   shxView.setFloat64(52, maxX, true);
   shxView.setFloat64(60, maxY, true);
   
-  shxView.setInt32(100, 100 / 2, false); // Record offset in 16-bit words
+  shxView.setInt32(100, 100 / 2, false);
   shxView.setInt32(104, recContentLengthBytes / 2, false);
   
   return { shpBuffer, shxBuffer };
 }
 
 function createDbfBuffer(dadosCalc, areaHa, epsg) {
-  // DBF File header (32 bytes) + 1 Field Header (32 bytes * 11 fields) + Header Terminator (1 byte) + Record (1 header byte + record bytes) + EOF (1 byte)
   const fields = [
     { name: "CULTURA", type: "C", len: 20, dec: 0, val: dadosCalc.cultura || "Soja" },
     { name: "EXPECTAT", type: "N", len: 10, dec: 2, val: (dadosCalc.expectativa_sacos || 60).toFixed(2) },
@@ -509,16 +544,12 @@ function createDbfBuffer(dadosCalc, areaHa, epsg) {
   const totalLen = headerLen + recLen + 1;
   
   const buf = new Uint8Array(totalLen);
-  buf[0] = 0x03; // dBase III
-  buf[1] = 126; buf[2] = 8; buf[3] = 3; // YY MM DD
+  buf[0] = 0x03;
+  buf[1] = 126; buf[2] = 8; buf[3] = 3;
   
-  // Num Records = 1
   buf[4] = 1; buf[5] = 0; buf[6] = 0; buf[7] = 0;
   
-  // Header Length
   buf[8] = headerLen & 0xFF; buf[9] = (headerLen >> 8) & 0xFF;
-  
-  // Record Length
   buf[10] = recLen & 0xFF; buf[11] = (recLen >> 8) & 0xFF;
   
   let offset = 32;
@@ -532,10 +563,10 @@ function createDbfBuffer(dadosCalc, areaHa, epsg) {
     offset += 32;
   });
   
-  buf[offset] = 0x0D; // Header Terminator
+  buf[offset] = 0x0D;
   offset += 1;
   
-  buf[offset] = 0x20; // Record deletion flag (space = valid)
+  buf[offset] = 0x20;
   offset += 1;
   
   fields.forEach(f => {
@@ -546,7 +577,7 @@ function createDbfBuffer(dadosCalc, areaHa, epsg) {
     offset += f.len;
   });
   
-  buf[offset] = 0x1A; // EOF
+  buf[offset] = 0x1A;
   return buf.buffer;
 }
 
@@ -568,7 +599,7 @@ IDENTIFICAÇÃO DO TALHÃO: ${nomeTalhao}
 ÁREA CALCULADA: ${areaHa.toFixed(2)} ha
 SISTEMA DE PROJEÇÃO: SIRGAS 2000 / UTM Zone ${zone}S (EPSG:${epsg})
 
-CULTURA AGRICOLA: ${dadosCalc.cultura}
+CULTURA AGRÍCOLA: ${dadosCalc.cultura}
 EXPECTATIVA DE PRODUTIVIDADE: ${dadosCalc.expectativa_sacos} sc/ha (${(dadosCalc.expectativa_sacos*0.06).toFixed(2)} t/ha)
 FORMULADO N-P-K UTILIZADO: ${dadosCalc.formulado}
 
