@@ -117,6 +117,20 @@
         <div class="help-text">Garantias do produto: XX% N, YY% Fósforo (P₂O₅), ZZ% Potássio (K₂O).</div>
       </div>
 
+      <!-- Porcentagens de Produtos Complementares -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+        <div class="form-group">
+          <label for="kCompPerc">Garantia Potássio (% K₂O)</label>
+          <input type="text" id="kCompPerc" placeholder="Ex: 60 ou 50" value="60">
+          <div class="help-text">Complemento K (Padrão: 60% KCl).</div>
+        </div>
+        <div class="form-group">
+          <label for="pCompPerc">Garantia Fósforo (% P₂O₅)</label>
+          <input type="text" id="pCompPerc" placeholder="Ex: 46, 52 ou 40" value="46">
+          <div class="help-text">Complemento P (Padrão: 46% Super Triplo).</div>
+        </div>
+      </div>
+
       <button id="btnCalcular" class="btn-primary">
         <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
