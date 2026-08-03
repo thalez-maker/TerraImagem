@@ -14,6 +14,8 @@ class CalculoRequest(BaseModel):
     cultura: str
     expectativa: float
     formulado: str
+    k_comp_perc: float = 60.0
+    p_comp_perc: float = 46.0
 
 @app.get("/api/culturas")
 def get_culturas():
@@ -25,7 +27,9 @@ def api_calcular(req: CalculoRequest):
         resultado = calcular_adubacao(
             cultura=req.cultura,
             expectativa_sacos=req.expectativa,
-            formulado_str=req.formulado
+            formulado_str=req.formulado,
+            k_comp_perc=req.k_comp_perc,
+            p_comp_perc=req.p_comp_perc
         )
         return resultado
     except Exception as e:
@@ -37,6 +41,8 @@ async def api_gerar_shapefile(
     cultura: str = Form(...),
     expectativa: float = Form(...),
     formulado: str = Form(...),
+    k_comp_perc: float = Form(60.0),
+    p_comp_perc: float = Form(46.0),
     nome_talhao: str = Form("Talhao_1")
 ):
     if not file.filename.lower().endswith(".kml"):
@@ -54,7 +60,9 @@ async def api_gerar_shapefile(
         dados_calculo = calcular_adubacao(
             cultura=cultura,
             expectativa_sacos=expectativa,
-            formulado_str=formulado
+            formulado_str=formulado,
+            k_comp_perc=k_comp_perc,
+            p_comp_perc=p_comp_perc
         )
         
         # 3. Processar KML, projetar para SIRGAS 2000 UTM e gerar Shapefile ZIP
